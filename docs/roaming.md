@@ -67,7 +67,7 @@ wifi reload
 一条命令（推荐）：
 
 ```sh
-360t7-ap-setup -s "MyWiFi" -k "your-password" \
+360t7-ap-setup -s "MyWiFi-5G" -S "MyWiFi-2.4G" -k "your-password" \
   -i 192.168.1.2 -g 192.168.1.1 -m 3607 -n 360t7
 ```
 
