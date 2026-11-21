@@ -1,0 +1,202 @@
+#!/bin/sh
+#
+# 360t7-ap-setup - turn a Qihoo 360T7 running ImmortalWrt into a wired AP
+# (dumb AP) with 802.11r/k/v fast roaming.
+#
+# Tested on ImmortalWrt 25.12.x, mediatek/filogic, wpad-openssl.
+#
+set -eu
+
+SSID=""
+PSK=""
+IPADDR="192.168.1.2"
+GATEWAY="192.168.1.1"
+MDOMAIN="3607"
+NASID="360t7"
+ASSUME_YES=0
+ENABLE_DAWN=0
+FT=1
+
+usage() {
+	cat <<'EOF'
+Usage: 360t7-ap-setup [options]
+
+  -s SSID       Wi-Fi SSID (asked interactively if omitted)
+  -k PSK        Wi-Fi password, at least 8 characters (asked if omitted)
+  -i IP         static LAN IP for this AP        (default 192.168.1.2)
+  -g IP         main router / gateway IP         (default 192.168.1.1)
+  -m HEX4       mobility domain, 4 hex digits, must match the main router (default 3607)
+  -n NAME       NAS ID of this AP, unique in the network (default 360t7)
+  -d            enable the DAWN steering service after configuring
+  -F            disable 802.11r, keep 802.11k/v only
+  -y            do not ask for confirmation
+  -h            show this help
+
+The script:
+  * gives the LAN bridge a static IP and disables DHCP/RA on it
+  * removes the WAN interfaces
+  * disables the firewall service (pure L2 AP, no NAT)
+  * configures every AP interface with the same SSID/PSK
+  * enables 802.11r (FT-PSK), 802.11k (RRM) and 802.11v (BTM)
+  * puts 5 GHz on channel 149 / HE80, away from DFS
+
+Run it over SSH, then reconnect to the new IP.
+EOF
+}
+
+log() { printf '==> %s\n' "$*"; }
+
+while getopts "ys:k:i:g:m:n:dFh" opt; do
+	case "$opt" in
+		y) ASSUME_YES=1 ;;
+		s) SSID="$OPTARG" ;;
+		k) PSK="$OPTARG" ;;
+		i) IPADDR="$OPTARG" ;;
+		g) GATEWAY="$OPTARG" ;;
+		m) MDOMAIN="$OPTARG" ;;
+		n) NASID="$OPTARG" ;;
+		d) ENABLE_DAWN=1 ;;
+		F) FT=0 ;;
+		h) usage; exit 0 ;;
+		*) usage; exit 1 ;;
+	esac
+done
+
+[ "$(id -u)" = "0" ] || { echo "error: run as root" >&2; exit 1; }
+
+if [ -z "$SSID" ]; then
+	printf 'SSID: '
+	read -r SSID || true
+fi
+[ -n "$SSID" ] || { echo "error: empty SSID" >&2; exit 1; }
+
+while [ -z "$PSK" ] || [ ${#PSK} -lt 8 ]; do
+	printf 'Wi-Fi password (>= 8 chars): '
+	stty -echo 2>/dev/null || true
+	read -r PSK || true
+	stty echo 2>/dev/null || true
+	echo
+done
+
+cat <<EOF
+
+  SSID              : $SSID
+  LAN address       : $IPADDR
+  Gateway           : $GATEWAY
+  Mobility domain   : $MDOMAIN
+  NAS ID            : $NASID
+  802.11r (FT)      : $([ "$FT" = 1 ] && echo enabled || echo disabled)
+  DAWN service      : $([ "$ENABLE_DAWN" = 1 ] && echo enabled || echo disabled)
+
+  The AP will reboot its network stack and the LAN IP changes to $IPADDR.
+  Make sure $GATEWAY runs a full wpad (wpad-openssl / wpad-mbedtls) with
+  the same SSID, PSK, mobility domain and a different NAS ID.
+
+EOF
+
+if [ "$ASSUME_YES" != 1 ]; then
+	printf 'Continue? [y/N] '
+	read -r ans || true
+	case "$ans" in
+		y|Y) ;;
+		*) echo "aborted"; exit 0 ;;
+	esac
+fi
+
+log "configuring LAN"
+uci set network.lan.proto=static
+uci set network.lan.ipaddr="$IPADDR"
+uci set network.lan.netmask=255.255.255.0
+uci set network.lan.gateway="$GATEWAY"
+uci set network.lan.dns="$GATEWAY"
+uci -q delete network.lan.ip6assign || true
+uci -q delete network.lan.ip6ifaceid || true
+
+log "removing WAN interfaces"
+for w in wan wan6; do
+	uci -q delete network.$w || true
+done
+
+log "disabling DHCP/RA on LAN"
+uci set dhcp.lan.ignore=1
+uci set dhcp.lan.dhcpv6=disabled
+uci set dhcp.lan.ra=disabled
+uci -q delete dhcp.wan || true
+
+log "configuring Wi-Fi"
+ifaces=$(uci show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-iface$/\1/p')
+[ -n "$ifaces" ] || { echo "error: no wifi-iface found in /etc/config/wireless" >&2; exit 1; }
+
+for s in $ifaces; do
+	[ "$(uci -q get wireless.$s.mode)" = "ap" ] || continue
+	uci set wireless.$s.ssid="$SSID"
+	uci set wireless.$s.encryption=psk2+ccmp
+	uci set wireless.$s.key="$PSK"
+	uci set wireless.$s.disabled=0
+	uci set wireless.$s.nasid="$NASID"
+	if [ "$FT" = 1 ]; then
+		uci set wireless.$s.ieee80211r=1
+		uci set wireless.$s.mobility_domain="$MDOMAIN"
+		uci set wireless.$s.ft_over_ds=0
+		uci set wireless.$s.ft_psk_generate_local=1
+		uci set wireless.$s.reassociation_deadline=20000
+	fi
+	uci set wireless.$s.ieee80211k=1
+	uci set wireless.$s.rrm_neighbor_report=1
+	uci set wireless.$s.rrm_beacon_report=1
+	uci set wireless.$s.bss_transition=1
+done
+
+log "configuring radios"
+radios=$(uci show wireless | sed -n 's/^wireless\.\(radio[0-9]*\)=wifi-device$/\1/p')
+for r in $radios; do
+	uci set wireless.$r.country=CN
+	uci set wireless.$r.disabled=0
+	case "$(uci -q get wireless.$r.band || true)" in
+		5g)
+			uci set wireless.$r.channel=149
+			uci set wireless.$r.htmode=HE80
+			;;
+		2g)
+			uci set wireless.$r.channel=auto
+			;;
+	esac
+done
+
+uci commit network
+uci commit dhcp
+uci commit wireless
+
+if [ "$ENABLE_DAWN" = 1 ] && [ -x /etc/init.d/dawn ]; then
+	log "enabling DAWN"
+	uci set dawn.@network[0].broadcast_ip="${IPADDR%.*}.255"
+	uci set dawn.@network[0].kicking=1
+	uci commit dawn
+	/etc/init.d/dawn enable
+fi
+
+log "disabling firewall service"
+/etc/init.d/firewall disable 2>/dev/null || true
+/etc/init.d/firewall stop 2>/dev/null || true
+
+log "restarting network"
+/etc/init.d/network restart
+sleep 2
+wifi reload || true
+
+if [ "$ENABLE_DAWN" = 1 ] && [ -x /etc/init.d/dawn ]; then
+	/etc/init.d/dawn restart || true
+fi
+
+cat <<EOF
+
+Done. This AP is now at $IPADDR (SSID "$SSID").
+
+Checklist:
+  * main router: same SSID/PSK, same mobility domain $MDOMAIN, different NAS ID
+  * main router: full wpad with 802.11r/k/v enabled
+  * client: reconnect once, then walk around and watch "iw dev wlan0 link"
+  * if 5 GHz disappears after enabling 802.11r, run: 360t7-ap-setup -F ...
+    (known MT7981 issue on DFS channels, see docs/roaming.md)
+
+EOF
