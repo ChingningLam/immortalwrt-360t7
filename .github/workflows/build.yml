@@ -7,10 +7,6 @@ on:
         description: "ImmortalWrt tag or branch (e.g. v25.12.2)"
         required: true
         default: "v25.12.2"
-      release:
-        description: "Create a GitHub Release for this build"
-        type: boolean
-        default: false
   push:
     tags:
       - "build-*"
@@ -70,6 +66,8 @@ jobs:
       - name: Apply build config
         run: |
           cp configs/360t7.config openwrt/.config
+          chmod +x scripts/diy.sh
+          ( cd openwrt && ../scripts/diy.sh )
           make -C openwrt defconfig
 
       - name: Verify build config
@@ -79,7 +77,6 @@ jobs:
           missing=0
           for sym in \
             CONFIG_TARGET_mediatek_filogic_DEVICE_qihoo_360t7 \
-            CONFIG_TARGET_mediatek_filogic_DEVICE_qihoo_360t7-ubi \
             CONFIG_PACKAGE_luci \
             CONFIG_PACKAGE_luci-theme-aurora \
             CONFIG_PACKAGE_luci-app-dawn \
@@ -91,6 +88,10 @@ jobs:
               missing=1
             fi
           done
+          if grep -q '^CONFIG_TARGET_MULTI_PROFILE=y$' .config; then
+            echo "::error::multi profile unexpectedly enabled"
+            missing=1
+          fi
           exit $missing
 
       - name: Cache downloaded sources
@@ -103,7 +104,7 @@ jobs:
 
       - name: Download sources
         working-directory: openwrt
-        run: make -j"$(nproc)" download
+        run: make -j"$(nproc)" download || make -j1 V=s download
 
       - name: Build firmware
         working-directory: openwrt
@@ -134,18 +135,17 @@ jobs:
           if-no-files-found: warn
 
       - name: Publish GitHub Release
-        if: "startsWith(github.ref, 'refs/tags/') || github.event.inputs.release == 'true'"
+        if: success()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            tag="build-$(date -u +%Y%m%d-%H%M%S)"
-            gh release create "$tag" out/*.itb out/*.bin out/*.fip out/sha256sums.txt \
-              --target "$GITHUB_SHA" \
-              --title "ImmortalWrt ${IWRT_VERSION} for 360T7 ($tag)" \
-              --notes "Images built from immortalwrt/immortalwrt ${IWRT_VERSION} for Qihoo 360T7 (MT7981B)."
-          else
-            gh release create "$GITHUB_REF_NAME" out/*.itb out/*.bin out/*.fip out/sha256sums.txt \
-              --title "ImmortalWrt ${IWRT_VERSION} for 360T7 ($GITHUB_REF_NAME)" \
-              --notes "Images built from immortalwrt/immortalwrt ${IWRT_VERSION} for Qihoo 360T7 (MT7981B)."
-          fi
+          tag="build-$(date -u +%Y%m%d-%H%M%S)-run${{ github.run_number }}"
+          gh release create "$tag" out/*.itb out/*.bin out/*.fip out/sha256sums.txt \
+            --target "$GITHUB_SHA" \
+            --title "ImmortalWrt ${IWRT_VERSION} for 360T7 ($tag)" \
+            --notes "Automated build of ImmortalWrt ${IWRT_VERSION} for Qihoo 360T7 (MT7981B).
+
+          - Default SSID: immortalwrt-360t7 (open network)
+          - Default LAN: 192.168.5.1
+          - LuCI + Aurora theme, DAWN installed (disabled)
+          - 802.11r/k/v ready (configure with 360t7-ap-setup)"
