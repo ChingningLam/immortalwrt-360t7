@@ -36,11 +36,14 @@
 
 仓库只产出一个设备的镜像：
 
+Release 里只保留两个可刷镜像，不会再出现 bootloader 文件：
+
 | 文件 | 用途 |
 |---|---|
-| `*-squashfs-sysupgrade.itb` | 正常升级 / 首次安装 |
-| `*-initramfs-recovery.itb` | 恢复模式 |
-| `*-bl31-uboot.fip` / `*-preloader.bin` | bootloader 相关，**写错会变砖** |
+| `*-squashfs-sysupgrade.itb` | ImmortalWrt 后台升级；U-Boot Web 界面刷机 |
+| `*-initramfs-recovery.itb` | U-Boot TFTP / 恢复模式启动 |
+
+`bl31-uboot.fip`、`preloader.bin` 属于 bootloader，刷错会变砖，已从 Release 和构建产物里移除。
 
 ## 编译
 

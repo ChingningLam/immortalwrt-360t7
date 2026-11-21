@@ -1,6 +1,6 @@
 # 刷机指南（360T7）
 
-> 这份文档只描述流程与判断依据，具体命令以对应教程为准。刷机有变砖风险，尤其是写 `preloader.bin` / `bl31-uboot.fip` 时。
+> 这份文档只描述流程与判断依据，具体命令以对应教程为准。刷机有变砖风险。本仓库的 Release 只提供 `sysupgrade.itb` 和 `initramfs-recovery.itb`，不提供 `preloader.bin` / `bl31-uboot.fip`。
 
 ## 0. 准备
 

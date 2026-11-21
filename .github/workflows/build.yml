@@ -118,8 +118,7 @@ jobs:
           mkdir -p out
           if [ -d openwrt/bin/targets/mediatek/filogic ]; then
             find openwrt/bin/targets/mediatek/filogic -maxdepth 1 -type f \
-              \( -name '*.itb' -o -name '*.bin' -o -name '*.fip' -o -name 'profiles.json' \) \
-              ! -name 'mt798*-ram-*.bin' \
+              -name '*.itb' \
               -exec cp {} out/ \;
           fi
           if [ -f openwrt/build.log ]; then cp openwrt/build.log out/; fi
@@ -141,7 +140,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="build-$(date -u +%Y%m%d-%H%M%S)-run${{ github.run_number }}"
-          gh release create "$tag" out/*.itb out/*.bin out/*.fip out/sha256sums.txt \
+          gh release create "$tag" out/*.itb out/sha256sums.txt \
             --target "$GITHUB_SHA" \
             --title "ImmortalWrt ${IWRT_VERSION} for 360T7 ($tag)" \
             --notes "Automated build of ImmortalWrt ${IWRT_VERSION} for Qihoo 360T7 (MT7981B).
