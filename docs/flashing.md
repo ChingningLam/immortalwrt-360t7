@@ -19,7 +19,7 @@ dd if=/dev/mtdN of=/tmp/mtdN.bin
 sha256sum -c sha256sums.txt
 ```
 
-4. **别混刷**：标准布局和 UBI 布局的分区表不同，刷错起不来。
+4. **别混刷**：标准布局和 UBI 布局的分区表不同，刷错起不来。本仓库只产出**标准布局**镜像。
 
 ## 1. 判断当前状态
 
@@ -63,7 +63,9 @@ sysupgrade -n /tmp/immortalwrt-25.12.2-mediatek-filogic-qihoo_360t7-squashfs-sys
 
 参考：[恩山：不死 U-Boot 刷官方 OpenWrt 的坑](https://www.right.com.cn/forum/thread-8392181-1-1.html)
 
-## 4. 情况 C：迁移到 UBI 布局（可选）
+## 4. 情况 C：迁移到 UBI 布局（可选，本仓库不产出）
+
+> 本仓库只编标准布局。如果你确实需要 UBI 布局，请使用 ImmortalWrt 官方 25.12.2 的 `qihoo_360t7-ubi` 镜像，流程如下。
 
 UBI 布局多约 20 MB 空间、factory/fip 放进 UBI，更可靠，但**只能从已运行标准布局 OpenWrt 的机器迁移**。
 
@@ -79,8 +81,9 @@ UBI 布局多约 20 MB 空间、factory/fip 放进 UBI，更可靠，但**只能
 
 ## 5. 首次启动
 
-- 地址：`http://192.168.1.1`
-- 默认无密码，进 LuCI 第一件事设置密码
+- 地址：`http://192.168.5.1`
+- 默认无密码（root 空密码），进 LuCI 第一件事设置密码
+- 默认 Wi-Fi：`immortalwrt-360t7`，开放网络，2.4G/5G 都已开启
 - 有线中继配置见 [README](../README.md) 或直接跑 `360t7-ap-setup`
 
 ## 6. 救砖
