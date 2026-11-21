@@ -179,14 +179,20 @@ log "disabling firewall service"
 /etc/init.d/firewall disable 2>/dev/null || true
 /etc/init.d/firewall stop 2>/dev/null || true
 
-log "restarting network"
-/etc/init.d/network restart
-sleep 2
-wifi reload || true
+log "applying network changes in the background (SSH will drop)"
 
+cat >/tmp/360t7-ap-apply.sh <<APPLY
+#!/bin/sh
+sleep 2
+/etc/init.d/network restart
+sleep 3
+wifi reload
 if [ "$ENABLE_DAWN" = 1 ] && [ -x /etc/init.d/dawn ]; then
-	/etc/init.d/dawn restart || true
+	/etc/init.d/dawn restart
 fi
+APPLY
+chmod +x /tmp/360t7-ap-apply.sh
+nohup /tmp/360t7-ap-apply.sh >/tmp/360t7-ap-setup.log 2>&1 &
 
 cat <<EOF
 
