@@ -196,7 +196,9 @@ nohup /tmp/360t7-ap-apply.sh >/tmp/360t7-ap-setup.log 2>&1 &
 
 cat <<EOF
 
-Done. This AP is now at $IPADDR (SSID "$SSID").
+Configuration written. The network stack is restarting in the background,
+so this SSH session will drop. Reconnect to http://$IPADDR in about 10 s.
+Apply log: /tmp/360t7-ap-setup.log
 
 Checklist:
   * main router: same SSID/PSK, same mobility domain $MDOMAIN, different NAS ID
