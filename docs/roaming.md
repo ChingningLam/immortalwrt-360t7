@@ -94,7 +94,7 @@ wifi reload
 
 ## 5. 信道与 160MHz 的取舍
 
-- 5 GHz 固定 **149 / HE80**：避开 DFS，降低 11r 触发 5G phy 消失（[#22308](https://github.com/openwrt/openwrt/issues/22308)）的概率。
+- 5 GHz 固定 **36 / HE80**（5.2G，非 DFS）：避开 DFS，降低 11r 触发 5G phy 消失（[#22308](https://github.com/openwrt/openwrt/issues/22308)）的概率。
 - 160MHz 对千兆口没有实际收益，还更容易受干扰；除非你确定周围 5.8G 干净且不需要 DFS。
 - 2.4 GHz 用 1/6/11 中与邻居不重叠的一个，不要和主路由同信道。
 

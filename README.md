@@ -71,7 +71,7 @@ Actions → **build-360t7** → Run workflow，`version` 默认 `v25.12.2`。流
 
 注意：`-i` 要填**主路由同网段**里没被占用的地址。默认固件的 `192.168.5.1` 只是首次进后台用；如果主路由就是 `192.168.5.1`，务必改用 `192.168.5.2` 之类。
 
-脚本会设静态 IP、关 DHCP/RA、删 WAN、关 firewall、统一 SSID/PSK、开 11r/k/v，并把 5G 固定到 149/HE80 避开 DFS。最后 `network restart` 在后台执行，SSH 会断，约 10 秒后连新地址。
+脚本会设静态 IP、关 DHCP/RA、删 WAN、关 firewall、统一 PSK、开 11r/k/v；5G 固定 **36/HE80**（5.2G，非 DFS），2.4G 固定 **11**。如果主路由两个频段 SSID 不同，用 `-s` 指定 5G、`-S` 指定 2.4G。最后 `network restart` 在后台执行，SSH 会断，约 10 秒后连新地址。
 
 ## 无缝漫游
 
@@ -93,7 +93,7 @@ Actions → **build-360t7** → Run workflow，`version` 默认 `v25.12.2`。流
 
 | 问题 | 影响 | 规避 |
 |---|---|---|
-| [openwrt#22308](https://github.com/openwrt/openwrt/issues/22308) | MT7981 开 11r 后 5G phy 可能消失（DFS 信道） | 5G 用 149；仍复现则 `360t7-ap-setup -F` 关 11r |
+| [openwrt#22308](https://github.com/openwrt/openwrt/issues/22308) | MT7981 开 11r 后 5G phy 可能消失（DFS 信道） | 5G 用 36（非 DFS）；仍复现则 `360t7-ap-setup -F` 关 11r |
 | [openwrt#22200](https://github.com/openwrt/openwrt/issues/22200) | 25.12 早期 SAE+FT 漫游失败 | 用 `psk2+ccmp`，脚本已默认 |
 | 2.4G 信号一般 | 硬件/天线限制 | 5G 为主，2.4G 覆盖近场 IoT |
 

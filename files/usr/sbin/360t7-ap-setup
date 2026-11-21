@@ -8,6 +8,7 @@
 set -eu
 
 SSID=""
+SSID24=""
 PSK=""
 IPADDR="192.168.1.2"
 GATEWAY="192.168.1.1"
@@ -21,7 +22,8 @@ usage() {
 	cat <<'EOF'
 Usage: 360t7-ap-setup [options]
 
-  -s SSID       Wi-Fi SSID (asked interactively if omitted)
+  -s SSID       5 GHz SSID (asked interactively if omitted)
+  -S SSID       2.4 GHz SSID (default: same as 5 GHz)
   -k PSK        Wi-Fi password, at least 8 characters (asked if omitted)
   -i IP         static LAN IP for this AP        (default 192.168.1.2)
   -g IP         main router / gateway IP         (default 192.168.1.1)
@@ -36,9 +38,9 @@ The script:
   * gives the LAN bridge a static IP and disables DHCP/RA on it
   * removes the WAN interfaces
   * disables the firewall service (pure L2 AP, no NAT)
-  * configures every AP interface with the same SSID/PSK
+  * configures every AP interface with the same PSK (SSID can differ per band)
   * enables 802.11r (FT-PSK), 802.11k (RRM) and 802.11v (BTM)
-  * puts 5 GHz on channel 149 / HE80, away from DFS
+  * puts 5 GHz on channel 36 / HE80 (5.2 GHz, non-DFS) and 2.4 GHz on channel 11
 
 Run it over SSH, then reconnect to the new IP.
 EOF
@@ -46,10 +48,11 @@ EOF
 
 log() { printf '==> %s\n' "$*"; }
 
-while getopts "ys:k:i:g:m:n:dFh" opt; do
+while getopts "ys:S:k:i:g:m:n:dFh" opt; do
 	case "$opt" in
 		y) ASSUME_YES=1 ;;
 		s) SSID="$OPTARG" ;;
+		S) SSID24="$OPTARG" ;;
 		k) PSK="$OPTARG" ;;
 		i) IPADDR="$OPTARG" ;;
 		g) GATEWAY="$OPTARG" ;;
@@ -69,6 +72,7 @@ if [ -z "$SSID" ]; then
 	read -r SSID || true
 fi
 [ -n "$SSID" ] || { echo "error: empty SSID" >&2; exit 1; }
+[ -n "$SSID24" ] || SSID24="$SSID"
 
 while [ -z "$PSK" ] || [ ${#PSK} -lt 8 ]; do
 	printf 'Wi-Fi password (>= 8 chars): '
@@ -80,7 +84,8 @@ done
 
 cat <<EOF
 
-  SSID              : $SSID
+  5 GHz SSID        : $SSID
+  2.4 GHz SSID      : $SSID24
   LAN address       : $IPADDR
   Gateway           : $GATEWAY
   Mobility domain   : $MDOMAIN
@@ -129,7 +134,13 @@ ifaces=$(uci show wireless | sed -n 's/^wireless\.\([^.=]*\)=wifi-iface$/\1/p')
 
 for s in $ifaces; do
 	[ "$(uci -q get wireless.$s.mode)" = "ap" ] || continue
-	uci set wireless.$s.ssid="$SSID"
+	dev=$(uci -q get wireless.$s.device || true)
+	band=$(uci -q get wireless.$dev.band || true)
+	if [ "$band" = "2g" ]; then
+		uci set wireless.$s.ssid="$SSID24"
+	else
+		uci set wireless.$s.ssid="$SSID"
+	fi
 	uci set wireless.$s.encryption=psk2+ccmp
 	uci set wireless.$s.key="$PSK"
 	uci set wireless.$s.disabled=0
@@ -154,11 +165,11 @@ for r in $radios; do
 	uci set wireless.$r.disabled=0
 	case "$(uci -q get wireless.$r.band || true)" in
 		5g)
-			uci set wireless.$r.channel=149
+			uci set wireless.$r.channel=36
 			uci set wireless.$r.htmode=HE80
 			;;
 		2g)
-			uci set wireless.$r.channel=auto
+			uci set wireless.$r.channel=11
 			;;
 	esac
 done
